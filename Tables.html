@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Multiplication Table Practice</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: orange;
+      margin: 0;
+      padding: 0;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+    body.dark-mode {
+      background-color: #121212;
+      color: #f0f0f0;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background: white;
+      border-radius: 15px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+    body.dark-mode .container {
+      background-color: #1e1e1e;
+      color: #f0f0f0;
+    }
+    h1, h2 {
+      text-align: center;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(10, 50px);
+      gap: 5px;
+      margin: 20px auto;
+      justify-content: center;
+    }
+    .cell {
+      width: 50px;
+      height: 50px;
+      background-color: #ccc;
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-weight: bold;
+      border-radius: 10px;
+      transition: background-color 0.3s ease;
+    }
+    .cell.correct {
+      background-color: #4caf50;
+    }
+    .cell.wrong {
+      background-color: #f44336;
+    }
+    #questionArea {
+      text-align: center;
+      font-size: 24px;
+      margin-bottom: 20px;
+    }
+    #leaderboard {
+      margin-top: 20px;
+    }
+    .stats {
+      text-align: center;
+      margin-top: 10px;
+    }
+    .signature {
+      text-align: center;
+      margin-top: 30px;
+      font-style: italic;
+    }
+    #timer {
+      font-weight: bold;
+      color: #ff5722;
+    }
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin: 10px 0;
+    }
+    button {
+      padding: 8px 12px;
+      border: none;
+      border-radius: 6px;
+      background-color: #007bff;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    #countdownOverlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: rgba(0, 0, 0, 0.7);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: white;
+      font-size: 5rem;
+      z-index: 1000;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="countdownOverlay">3</div>
+  <div class="container">
+    <h1>Multiplication Table Practice</h1>
+    <label for="timeLimit">Set Time Limit (seconds): </label>
+    <input type="number" id="timeLimit" value="60" min="10" />
+    <button onclick="initCountdown()">Start</button>
+
+    <div class="controls">
+      <button onclick="toggleDarkMode()">Toggle Dark Mode</button>
+      <button onclick="toggleSound()">Toggle Sound</button>
+      <button onclick="goHome()">Back to Home</button>
+    </div>
+
+    <div id="timerDisplay" class="stats">Time Left: <span id="timer">0</span>s</div>
+    <div class="grid" id="grid"></div>
+
+    <div id="questionArea" style="display: none">
+      <span id="question"></span>
+      <input type="number" id="answerInput" onkeydown="handleAnswer(event)" />
+    </div>
+
+    <div class="stats">
+      <p>Correct: <span id="correctCount">0</span> / 100</p>
+      <p>Attempted: <span id="attemptedCount">0</span> / 100</p>
+    </div>
+
+    <div id="leaderboard">
+      <h2>Leaderboard</h2>
+      <ol id="leaderboardList"></ol>
+    </div>
+
+    <div class="signature">By: Sasi</div>
+  </div>
+
+  <script>
+    let grid = [];
+    let questionQueue = [];
+    let currentIndex = 0;
+    let correctCount = 0;
+    let attemptedCount = 0;
+    let timer;
+    let countdown;
+    let startTime;
+    let soundEnabled = true;
+
+    let questionSpan = document.getElementById("question");
+    let answerInput = document.getElementById("answerInput");
+    let gridContainer = document.getElementById("grid");
+    let leaderboard = JSON.parse(localStorage.getItem("leaderboard") || "[]");
+
+    let correctCountDisplay = document.getElementById("correctCount");
+    let attemptedCountDisplay = document.getElementById("attemptedCount");
+    let timerDisplay = document.getElementById("timer");
+    let countdownOverlay = document.getElementById("countdownOverlay");
+
+    const correctSound = new Audio("https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg");
+    const wrongSound = new Audio("https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg");
+
+    function toggleDarkMode() {
+      document.body.classList.toggle("dark-mode");
+    }
+
+    function toggleSound() {
+      soundEnabled = !soundEnabled;
+      alert("Sound is now " + (soundEnabled ? "ON" : "OFF"));
+    }
+
+    function goHome() {
+      window.location.href = "/";
+    }
+
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    function generateGrid() {
+      gridContainer.innerHTML = "";
+      grid = [];
+      questionQueue = [];
+      for (let i = 1; i <= 10; i++) {
+        for (let j = 1; j <= 10; j++) {
+          questionQueue.push({ i, j });
+        }
+      }
+      shuffle(questionQueue);
+
+      for (let k = 0; k < 100; k++) {
+        let cell = document.createElement("div");
+        cell.className = "cell";
+        cell.textContent = "";
+        grid.push({ cell, ...questionQueue[k], answered: false });
+        gridContainer.appendChild(cell);
+      }
+    }
+
+    function askQuestion() {
+      if (currentIndex >= grid.length) {
+        endGame();
+        return;
+      }
+      let { i, j } = grid[currentIndex];
+      questionSpan.textContent = `${i} × ${j} = `;
+      answerInput.value = "";
+      answerInput.focus();
+    }
+
+    function handleAnswer(event) {
+      if (event.key === "Enter") {
+        let userAnswer = parseInt(answerInput.value);
+        let { i, j, cell } = grid[currentIndex];
+        let correctAnswer = i * j;
+        cell.textContent = `${i}×${j}`;
+        attemptedCount++;
+        if (userAnswer === correctAnswer) {
+          cell.classList.add("correct");
+          correctCount++;
+          if (soundEnabled) correctSound.play();
+        } else {
+          cell.classList.add("wrong");
+          if (soundEnabled) wrongSound.play();
+        }
+        correctCountDisplay.textContent = correctCount;
+        attemptedCountDisplay.textContent = attemptedCount;
+        currentIndex++;
+        askQuestion();
+      }
+    }
+
+    function initCountdown() {
+      let count = 3;
+      countdownOverlay.style.display = "flex";
+      countdownOverlay.textContent = count;
+
+      let countdownTimer = setInterval(() => {
+        count--;
+        if (count > 0) {
+          countdownOverlay.textContent = count;
+        } else {
+          clearInterval(countdownTimer);
+          countdownOverlay.textContent = "Go!";
+          setTimeout(() => {
+            countdownOverlay.style.display = "none";
+            startGame();
+          }, 1000);
+        }
+      }, 1000);
+    }
+
+    function startGame() {
+      generateGrid();
+      currentIndex = 0;
+      correctCount = 0;
+      attemptedCount = 0;
+      correctCountDisplay.textContent = 0;
+      attemptedCountDisplay.textContent = 0;
+
+      let timeLimit = parseInt(document.getElementById("timeLimit").value);
+      document.getElementById("questionArea").style.display = "block";
+      startTime = Date.now();
+      timerDisplay.textContent = timeLimit;
+
+      askQuestion();
+
+      countdown = setInterval(() => {
+        let timeLeft = timeLimit - Math.floor((Date.now() - startTime) / 1000);
+        timerDisplay.textContent = timeLeft;
+        if (timeLeft <= 0) clearInterval(countdown);
+      }, 500);
+
+      timer = setTimeout(endGame, timeLimit * 1000);
+    }
+
+    function endGame() {
+      clearTimeout(timer);
+      clearInterval(countdown);
+      let timeTaken = (Date.now() - startTime) / 1000;
+      let name = prompt("Enter your name for the leaderboard:");
+      if (name) {
+        leaderboard.push({ name, correctCount, timeTaken });
+        leaderboard.sort((a, b) => b.correctCount - a.correctCount || a.timeTaken - b.timeTaken);
+        leaderboard = leaderboard.slice(0, 10);
+        localStorage.setItem("leaderboard", JSON.stringify(leaderboard));
+        updateLeaderboard();
+      }
+      document.getElementById("questionArea").style.display = "none";
+    }
+
+    function updateLeaderboard() {
+      let list = document.getElementById("leaderboardList");
+      list.innerHTML = "";
+      leaderboard.forEach(entry => {
+        let item = document.createElement("li");
+        item.textContent = `${entry.name} - ${entry.correctCount} correct in ${entry.timeTaken.toFixed(1)}s`;
+        list.appendChild(item);
+      });
+    }
+
+    updateLeaderboard();
+  </script>
+</body>
+</html>
